@@ -43,12 +43,20 @@ class AutoServiceAnalysisExtension(
         bindingTrace: BindingTrace,
         componentProvider: ComponentProvider
     ): AnalysisResult? {
-        println("TempAnalysisExtension doAnalysis:")
-        val kv = KVisitor(bindingTrace, componentProvider)
+        JavaSupport(dataSet).collectAutoServiceAnnotation(project, compilerConfiguration)
+
+        val kv = KVisitor(componentProvider)
         files.forEach { ktFile ->
             ktFile.accept(kv)
         }
-        return null
+        return super.doAnalysis(
+            project,
+            module,
+            projectContext,
+            files,
+            bindingTrace,
+            componentProvider
+        )
     }
 
     override fun analysisCompleted(
@@ -57,7 +65,6 @@ class AutoServiceAnalysisExtension(
         bindingTrace: BindingTrace,
         files: Collection<KtFile>
     ): AnalysisResult? {
-        println("00000000000000" + dataSet)
         val checkDir = checkParentDir()
         if (checkDir) {
             dataSet.asSequence()
@@ -82,10 +89,7 @@ class AutoServiceAnalysisExtension(
         return true
     }
 
-    private inner class KVisitor(
-        private val bindingTrace: BindingTrace,
-        componentProvider: ComponentProvider
-    ) : KtVisitorVoid() {
+    private inner class KVisitor(componentProvider: ComponentProvider) : KtVisitorVoid() {
 
         private val autoServiceFqName = FqName(AUTO_SERVICE_NAME)
         private val autoServiceParameterName = Name.identifier("value")
@@ -100,7 +104,6 @@ class AutoServiceAnalysisExtension(
             super.visitClass(klass)
             val resolveToDescriptor = resolveSession.resolveToDescriptor(klass)
             val hasSpecialAnnotation = resolveToDescriptor.hasSpecialAnnotation(klass)
-            println("visitClass:${klass.annotationEntries.size}===$hasSpecialAnnotation")
 
             if (hasSpecialAnnotation) {
                 val autoServiceAnnotation =
@@ -146,8 +149,6 @@ class AutoServiceAnalysisExtension(
                 is KClassValue.Value.LocalClass -> {
                 }
             }
-
-
         }
     }
 }
