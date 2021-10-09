@@ -85,6 +85,9 @@ class AutoServiceAnalysisExtension(
         val parentFile = File(outputDir, SERVICES_DIR)
         if (!parentFile.exists()) {
             return parentFile.mkdirs()
+        } else {
+            parentFile.listFiles()
+                ?.let { files -> files.asSequence().filter { it.isFile }.forEach { it.delete() } }
         }
         return true
     }
