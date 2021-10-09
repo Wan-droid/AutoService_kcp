@@ -5,6 +5,12 @@
 //        mavenCentral()
 //    }
 //}
+pluginManagement {
+    repositories {
+        mavenLocal()
+        gradlePluginPortal()
+    }
+}
 rootProject.name = "AutoService_kcp"
 //include(":app")
 include(":compiler_plugin")
