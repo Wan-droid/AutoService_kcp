@@ -1,6 +1,8 @@
 package com.wandroid.autoservice.compiler
 
 import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.jvm.config.JavaSourceRoot
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.StandardFileSystems
@@ -39,16 +41,35 @@ internal class JavaSupport(private val dataSet: MutableMap<String, MutableSet<St
         project: Project,
         compilerConfiguration: CompilerConfiguration
     ) {
+        val report = compilerConfiguration.get(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY,
+            MessageCollector.NONE)
         val javaFiles = innerCollectAllJavaFiles(project, compilerConfiguration)
 
         javaFiles.asSequence()
-            .flatMap { psiJavaFile -> psiJavaFile.classes.asSequence() }
+            .flatMap { psiJavaFile ->
+                report.report(CompilerMessageSeverity.STRONG_WARNING,psiJavaFile.classes.contentToString())
+                psiJavaFile.classes.asSequence() }
             .flatMap { psiClass -> psiClass.annotations.map { psiClass to it }.asSequence() }
-            .filter { it.second.qualifiedName == AutoServiceAnalysisExtension.AUTO_SERVICE_NAME }
-            .flatMap { pair -> pair.second.parameterList.attributes.map { pair.first to it }.asSequence() }
-            .map { it.first to it.second.value as? PsiArrayInitializerMemberValue }
-            .filter { it.second != null }
-            .flatMap { pair -> pair.second!!.initializers.map { pair.first to it }.asSequence() }
+            .filter {
+                it.second.qualifiedName == AutoServiceAnalysisExtension.AUTO_SERVICE_NAME }
+            .flatMap { pair ->
+                pair.second.parameterList.attributes.map { pair.first to it }.asSequence() }
+            .flatMap { pair->
+                val value = pair.second.value
+                when(value){
+                    is PsiClassObjectAccessExpression->{
+                        sequenceOf(pair.first to value)
+                    }
+                    is PsiArrayInitializerMemberValue->{
+                        //psiFile->psiClass->psiAnnotation->PsiAnnotationParameterList->PsiNameValuePair
+                        // ->PsiArrayInitializerMemberValue->PsiAnnotationMemberValue
+                        value.initializers.map { pair.first to it }.asSequence()
+                    }
+                    else->{
+                        emptySequence<Pair<PsiClass,PsiElement>>()
+                    }
+                }
+            }
             .forEach { pair ->
                 val canonicalName = argToCanonicalName(pair.second)!!
                 val valueData = dataSet.getOrElse(canonicalName) {
@@ -56,13 +77,11 @@ internal class JavaSupport(private val dataSet: MutableMap<String, MutableSet<St
                     dataSet[canonicalName] = set
                     set
                 }
-                //psiFile->psiClass->psiAnnotation->PsiAnnotationParameterList->PsiNameValuePair
-                // ->PsiArrayInitializerMemberValue->PsiAnnotationMemberValue
                 pair.first.qualifiedName?.let { valueData.add(it) }
             }
     }
 
-    private fun argToCanonicalName(member: PsiAnnotationMemberValue): String? {
+    private fun argToCanonicalName(member: PsiElement): String? {
         val psiType = JavaPsiFacade.getInstance(member.project).constantEvaluationHelper
             .computeConstantExpression(member) as? PsiType
         return psiType?.canonicalText

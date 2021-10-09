@@ -27,3 +27,7 @@ class AutoServiceComponentRegistrar : ComponentRegistrar {
         )
     }
 }
+
+//TODO:Kotlin支持内部类
+//TODO:Java支持静态内部类
+//TODO:增量时要先清除services下的所有文件
